@@ -1,0 +1,111 @@
+---
+title: "Creating an article with rmarkdown"
+author:
+  - John Doe:
+        institute: [inst1]
+  - Jane Doe:
+        institute: [inst2]
+institute:
+  - inst1: Institute of RMarkdown
+  - inst2: RMarkdown Academy
+bibliography: bib.bib
+abstract: >-
+    This is an example document showing some of the features required
+    to make a document that will output to both pdf and word
+keywords: "rmarkdown"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+fontsize: 11pt
+output:
+    bookdown::word_document2:
+        pandoc_args:
+          - --lua-filter=scholarly-metadata.lua
+          - --lua-filter=author-info-blocks.lua
+          - --lua-filter=captionref.lua
+    bookdown::pdf_document2:
+        keep_tex: true
+        toc: false
+        pandoc_args:
+          - --template=exampletemplate.tex
+          - --lua-filter=scholarly-metadata.lua
+          - --lua-filter=author-info-blocks.lua
+          - --lua-filter=captionref.lua
+---
+
+# Compiling this document
+
+This document assumes you have a sufficiently pandoc 2.8 and R 3.6 with rmarkdown [@allaire2019,@xie2018], huxtable, and flextable packages installed.
+
+To compile from R we then run the following commands
+
+```
+> library(rmarkdown)
+> rmarkdown::render('example.Rmd', output_format='all')
+```
+
+This should produce both a pdf and word document.
+
+Some things that don't quite work are:
+
+- The table code shown in the pdf output is not the same as the actual code. This is due to an interplay between the mechanism this document uses to allow cross-referencing of tables in Word documents and removal the relevant tags (and escaping of backslashes) for the pdf document.
+- The table column width meanings seem to be different between the word output and the pdf output
+
+# Multiple authors
+
+To produce a title page with multiple authors we make use of some lua filters.
+These are author-info-blocks
+https://github.com/pandoc/lua-filters/tree/master/author-info-blocks
+ and scholarly-metadata
+https://github.com/pandoc/lua-filters/tree/master/scholarly-metadata .
+
+
+# Figure example
+
+Here we make Figure \@ref(fig:flow). 
+
+```{r flow, echo = FALSE, results='asis', warnings=FALSE, cache=FALSE, fig.cap="An example of a figure."}
+knitr::include_graphics("examplefig.pdf")
+```
+
+
+# Table example
+
+Here we make Table \@ref(tab:table).
+
+
+```{r echo = FALSE, results='asis', warning=FALSE, cache=FALSE}
+library(huxtable)
+library(magrittr)
+example.df <- data.frame(Col1=c('Foo', 'Bar', 'Fizz', 'Buzz'),
+                         Col2=c(1, 2, 3, 4),
+                         Col3=c(1.12345, 1.54321, 4.12345, 4.54321))
+colnames(example.df) <- c("Col 1", "Col 2", "Col 3")
+
+```
+
+
+
+```{r table, echo = TRUE, results='asis', warning=FALSE, cache=FALSE}
+
+hdr1 <- hux("Sub-header for FooBar", "", "")
+hdr2 <- hux("Sub-header for FizzBuzz", "", "")
+
+example.huxtable <- as_hux(example.df)
+
+example.huxtable %>% 
+add_colnames %>%
+set_bold(1, everywhere, TRUE) %>%
+set_bottom_border(1, everywhere, 2) %>%
+set_top_border(1, everywhere, 2) %>%
+add_rows(hdr1, 1) %>%  # the row is added **after** the specified row (new row is row 2)
+merge_cells(2, c(1, 3)) %>%
+add_rows(hdr2, 4) %>%  # at this point "Bar" is in row 4
+merge_cells(5, c(1, 3)) %>%
+add_footnote("This is the footnote text for the table") %>%
+set_caption("(#tab:table)Table \\@ref(tab:table): Caption text for table") %>%
+set_caption_pos("bottom") %>%
+set_col_width(c(2.0, 3.0, 1.5)) %>%
+set_col_width(c(.3, .3, .3)) %>%
+set_contents(1, 1, "New Col 1") %>%
+set_width(0.9)
+
+```
