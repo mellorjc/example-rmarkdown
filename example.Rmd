@@ -1,13 +1,20 @@
 ---
 title: "Creating an article with rmarkdown"
 author:
-  - John Doe:
-        institute: [inst1]
-  - Jane Doe:
-        institute: [inst2]
+  - name: John Doe
+    institute: [inst1]
+    affiliation: add1
+  - name: Jane Doe
+    institute: [inst2]
+    affiliation: add2
 institute:
   - inst1: Institute of RMarkdown
   - inst2: RMarkdown Academy
+address:
+  - code: add1
+    address: Institute of RMarkdown, Townville
+  - code: add2
+    address: RMarkdown Academy, Townville
 bibliography: bib.bib
 abstract: >-
     This is an example document showing some of the features required
@@ -21,19 +28,17 @@ output:
           - --lua-filter=scholarly-metadata.lua
           - --lua-filter=author-info-blocks.lua
           - --lua-filter=captionref.lua
-    bookdown::pdf_document2:
+    bookdown::pdf_book:
+        base_format: rticles::elsevier_article
         keep_tex: true
         toc: false
         pandoc_args:
-          - --template=exampletemplate.tex
-          - --lua-filter=scholarly-metadata.lua
-          - --lua-filter=author-info-blocks.lua
           - --lua-filter=captionref.lua
 ---
 
 # Compiling this document
 
-This document assumes you have a sufficiently pandoc 2.8 and R 3.6 with rmarkdown [@allaire2019,@xie2018], huxtable, and flextable packages installed.
+This document assumes you have pandoc 2.8 and R 3.6 with sufficiently recent markdown [@allaire2019,xie2018], rticles [@rticles], huxtable [@huxtable], and flextable packages installed.
 
 To compile from R we then run the following commands
 
@@ -49,27 +54,110 @@ Some things that don't quite work are:
 - The table code shown in the pdf output is not the same as the actual code. This is due to an interplay between the mechanism this document uses to allow cross-referencing of tables in Word documents and removal the relevant tags (and escaping of backslashes) for the pdf document.
 - The table column width meanings seem to be different between the word output and the pdf output
 
+
+# PDF templates
+
+We will be using the rticles LaTeX templates to produce a pdf of this document.
+Since we are using pandoc 2.8 we also require a recent version of rticles.
+This is because pandoc 2.8 requires LaTeX templates to contain the cslreferences environment.
+For rticles this was introduced in commit `1c5dfcd`.
+
+To enable cross-referencing of figures and tables in markdown in a uniform manner which also works for producing word documents we will also use the bookdown [@bookdown].
+
+The section of the YAML header of this document required to output to pdf looks like
+```
+    bookdown::pdf_book:
+        base_format: rticles::elsevier_article
+        keep_tex: true
+        toc: false
+        pandoc_args:
+          - --lua-filter=captionref.lua
+``` 
+
+We specify that we are outputting a bookdown `pdf_book` and specify a `base_format` or `rticles::elsevier_article` to make use of the rticles template for elsevier articles. The inclusion of `keep_tex` is optional and was used for debugging purposes. We set `toc` to false to explicitly specify we don't want a table of contents. We mention the use of lua-filters a bit further.  
+
 # Multiple authors
 
+The current solution to this in this document is not entirely statisfactory since it requires data being repeated in the YAML header. One entry for word documents and one for pdf documents. However, they are at least able to co-exist together simultaneously in the same document. 
+
+
+## Word documents
+
 To produce a title page with multiple authors we make use of some lua filters.
-These are author-info-blocks
-https://github.com/pandoc/lua-filters/tree/master/author-info-blocks
- and scholarly-metadata
-https://github.com/pandoc/lua-filters/tree/master/scholarly-metadata .
+These are 
+`scholarly-metadata` and 
+`author-info-blocks` which are available in the `lua-filters` repository [@luafilters].
+
+Firstly we add these to the YAML under the `word_document2` section like so
+
+```
+    bookdown::word_document2:
+        pandoc_args:
+          - --lua-filter=scholarly-metadata.lua
+          - --lua-filter=author-info-blocks.lua
+```
+
+This will tell pandoc to produce a word document and to run the two filters *in* *order*.
+
+These filters look for meta-data in the header about the authors in a particular format and then use this to produce
+the text in the word document.
+
+The relevant lines in our document are
+
+```
+author:
+  - name: John Doe
+    institute: [inst1]
+  - name: Jane Doe
+    institute: [inst2]
+institute:
+  - inst1: Institute of RMarkdown
+  - inst2: RMarkdown Academy
+```
+
+## PDF document
+
+The `elsevier_article` template we are using does not require these filters to run. It uses the same author names format but requires affiliations and addresses (among other optional meta-data). 
+We can add this information into the YAML we had in the previous section like so
+
+```
+author:
+  - name: John Doe
+    institute: [inst1]
+    affiliation: add1
+  - name: Jane Doe
+    institute: [inst2]
+    affiliation: add2
+institute:
+  - inst1: Institute of RMarkdown
+  - inst2: RMarkdown Academy
+address:
+  - code: add1
+    address: Institute of RMarkdown, Townville
+  - code: add2
+    address: RMarkdown Academy, Townville
+```
 
 
 # Figure example
 
 Here we make Figure \@ref(fig:flow). 
+In this example bookdown is enabling us to reference the figure. 
+The figure is defined as
 
 ```{r flow, echo = FALSE, results='asis', warnings=FALSE, cache=FALSE, fig.cap="An example of a figure."}
 knitr::include_graphics("examplefig.pdf")
 ```
 
+The R cell is given the name `flow`. Bookdown then produces a label for this figure by appending `fig:` to the name. We can then reference this in the document using `\@ref`.
 
 # Table example
 
-Here we make Table \@ref(tab:table).
+Here we make Table \@ref(tab:table). We use huxtable to make the table as it outputs to both word and LaTeX. 
+For huxtable tables we currently need to add a marker in the `set_caption` function to give the table a label. 
+Unfortunately without further intervention this marker remains in the document.
+However we can make use of a custom lua filter to remove these markers after they serve their purpose. 
+In this document these are found in `captionref.lua`. 
 
 
 ```{r echo = FALSE, results='asis', warning=FALSE, cache=FALSE}
